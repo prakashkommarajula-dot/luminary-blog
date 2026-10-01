@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "author", "reader"] },
+        "bio": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "followers": { "type": "array", "items": { "type": "string" } },
+        "following": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Blog post content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "content": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published", "scheduled"] },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "readingTime": { "type": "number" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "content", "authorId", "status"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a blog post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "parentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "userId", "content"]
+    },
+    "Newsletter": {
+      "title": "Newsletter",
+      "description": "Newsletter subscription",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "subscribedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "follow", "new_post"] },
+        "fromUserId": { "type": "string" },
+        "fromUserName": { "type": "string" },
+        "postId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "fromUserId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Blog posts"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on posts"
+    },
+    "/newsletter/{email}": {
+      "schema": "Newsletter",
+      "description": "Newsletter subscribers"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/users/{userId}/bookmarks/{postId}": {
+      "schema": "Post",
+      "description": "User bookmarked posts"
+    }
+  }
+}

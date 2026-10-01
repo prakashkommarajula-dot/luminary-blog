@@ -1,0 +1,151 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Fields:
+//   - uid: string (required)
+//   - email: string (required, format: email)
+//   - displayName: string
+//   - photoURL: string
+//   - role: string (required, enum: ['admin', 'author', 'reader'])
+//   - bio: string
+//   - createdAt: timestamp
+//
+// Collection: posts
+// Fields:
+//   - title: string (required)
+//   - slug: string (required)
+//   - content: string (required)
+//   - excerpt: string
+//   - coverImage: string
+//   - authorId: string (required)
+//   - authorName: string
+//   - authorPhoto: string
+//   - status: string (required, enum: ['draft', 'published', 'scheduled'])
+//   - category: string
+//   - tags: list
+//   - likesCount: number
+//   - commentsCount: number
+//   - readingTime: number
+//   - publishedAt: timestamp
+//   - createdAt: timestamp
+//   - updatedAt: timestamp
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "prakashkommarajula@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isAuthor() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'author';
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'author', 'reader'] &&
+             (!('displayName' in data) || data.displayName is string) &&
+             (!('photoURL' in data) || isValidUrl(data.photoURL));
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['title', 'slug', 'content', 'authorId', 'status']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.slug is string && data.slug.size() > 0 &&
+             data.content is string && data.content.size() > 0 &&
+             data.authorId == request.auth.uid &&
+             data.status in ['draft', 'published', 'scheduled'] &&
+             (!('coverImage' in data) || isValidUrl(data.coverImage));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Allow public to read author profiles, and users to read their own profile
+      allow read: if resource.data.role == 'author' || isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /posts/{postId} {
+      // Allow public to read published posts, and authors/admins to read their own/all posts
+      allow read: if resource.data.status == 'published' || (isAuthenticated() && (isOwner(resource.data.authorId) || isAdmin()));
+      allow create: if (isAuthor() || isAdmin()) && isValidPost(request.resource.data);
+      allow update: if (isAuthenticated() && (isOwner(resource.data.authorId) || isAdmin())) && isValidPost(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.authorId) || isAdmin());
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /newsletter/{email} {
+      allow create: if isValidEmail(email);
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, update: if isOwner(userId);
+      allow create: if isAuthenticated();
+    }
+
+    match /users/{userId}/bookmarks/{postId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Allow users to read their own reading history
+    match /users/{userId}/readingHistory/{historyId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+    }
+
+    // Allow public to read search suggestions
+    match /metadata/search {
+      allow read: if true;
+    }
+
+    // Allow public to read platform stats
+    match /metadata/stats {
+      allow read: if true;
+    }
+  }
+}
